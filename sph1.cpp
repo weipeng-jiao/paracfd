@@ -6,25 +6,46 @@ using namespace std;
 
 
 #define CHUNKSIZE 40  //动态引导进程类型使用的每个线程的块大小
-#define THREAD_NUM 16
+#define THREAD_NUM 16 //并行的线程数
 
 
-// 全局参数
+//全局参数
+
+#define M_pi 3.14159265359
+#define ad  96*3.14159265359/1199
+#define c0  30.0
+
+//参数初始化 
+#define n 5000  //粒子数
+#define mu 0.001  //动力粘度
+#define Rho 1000  //密度
+
+
+#define L 20.0  //计算域
+#define H 10.0  //计算域
+#define bt 3 //边界厚度
+#define l1 1.0*20.0  //流体1长度
+#define l2 0.15*20 //流体2
+#define h1 0.2*10.0  //流体
+#define h2 0.3*10.0
+#define gx 0  //加速度分量
+#define gy -9.81  //加速度分量
+
+//时间
+#define dt 0.0001
+#define t_sim 0.0
+#define steps 40000
+#define t_total  0.0001*40000
+
+
+
 int i, j, k, psi, q, qi;
-double M_pi = 3.14159265359;
-double ad = 96*M_pi/1199;
-double c0 = 30.0;
-
-// 粒子参数
-int n, nb, d, ni, ne, stencil_size, bt;
-double  mass, mu, Rho, V, V1, V2, h, space;
-
-// 网格
+int nb, d, ni, ne, stencil_size;
 int r, c, rb, cb, n1, n2, row_fact, col_fact;
-double Dx, Dy, dx, dy, L, H, l1, l2, h1, h2, gx, gy;
+double mass, V, V1, V2, h, space;
+double Dx, Dy, dx, dy;
 
-// 时间
-double dt, t_sim, t_total, steps;
+
 
 //矩阵输出函数
 
@@ -341,30 +362,12 @@ int main()
     ios_base::sync_with_stdio(false);
     cin.tie(NULL); cout.tie(NULL);
 
+
     //帧数
     double fps = 30;
     double print_count = 0;
 
-    //粒子数
-    n = 5000;
-    //密度
-    Rho = 1000;
 
-    //时间步
-    dt = 0.0001;
-    steps = 40000;
-    t_total = dt*steps;
-    t_sim = 0.0;
-
-    //边界厚度
-    bt = 3;
-    //尺寸
-    L = 20;
-    H = 10;
-
-    //几何初始化参数
-    h1 = 0.2*H; l1 = L;
-    h2 = 0.3*H; l2 = 0.15*L;
     V1 = h1*l1; V2 = h2*l2;
     V = V1 + V2;
     double ratio = V1/V;
@@ -429,10 +432,8 @@ int main()
     initialise(x_old, y_old, l1, l2);
     initialiseBoundaries(x, y, nbh, nbv, nbh_side, nbv_side);
 
-    //流体属性
+    //流体质量
     mass = Rho * dx * dx;
-    mu = 0.001;
-    gx = 0; gy = -9.81;
 
     //文件初始化
     string pathx = "x.txt";
@@ -488,7 +489,6 @@ int main()
                 bool out_of_bounds = stencilBoundaryCheck(i, j);
                 if (out_of_bounds == 1) {continue;}
 
-                // Find all particle neighbours @ stencil cell
                 for (int k=0; k<ndeg[i*cb+j]; k++) {
 
                     // 当前粒子系数
