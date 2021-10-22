@@ -9,7 +9,7 @@ using namespace std;
 #define THREAD_NUM 16
 
 
-// 全局参数
+//初始化
 int i, j, k, psi, q, qi;
 double M_pi = 3.14159265359;
 double ad = 96*M_pi/1199;
@@ -26,7 +26,6 @@ double Dx, Dy, dx, dy, L, H, l1, l2, h1, h2, gx, gy;
 // 时间
 double dt, t_sim, t_total, steps;
 
-//矩阵输出函数
 
 //一维矩阵
 template <typename T>
@@ -340,6 +339,10 @@ int main()
 {
     ios_base::sync_with_stdio(false);
     cin.tie(NULL); cout.tie(NULL);
+
+
+
+
 
     //帧数
     double fps = 30;
