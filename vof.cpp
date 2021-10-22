@@ -1,15 +1,34 @@
+#include<iostream>
+#include<cmath>
+using namespace std;
+
+
+
+double** Matrix(int m,int n)
+{
+	double** matrix = new double*[m];
+	for(int i=0; i<m; ++i)
+	{
+		matrix[i] = new double[n];
+	}
+	return matrix;
+}
+
+
+int main()
+{
 //输入网格参数
-global nx ny Lx Ly
-global rho_water rho_air nu_water nu_air gx gy
-global x1 y1 x2 y2
-global  dt
+int nx, ny, Lx, Ly;
+double rho_water, rho_air, nu_water, nu_air, gx, gy;
+double x1, y1, x2, y2;
+double  dt;
 nx=32;          //x方向网格点数
 ny=32;          //y方向网格点数
 Lx=1;           //区域长度
 Ly=1;           //区域高度
 //输入物理参数
-rho_water=1;
-rho_air=0.5;
+rho_water=1;    //水的密度
+rho_air=0.001;    //空气密度
 nu_water=0.01;  //运动粘性系数
 nu_air=0.005;   //运动粘性系数
 gx=0;
@@ -21,16 +40,20 @@ y1=0.5;
 y2=1;
 //求解参数
 dt=0.001;
-//mesh=========================================================================
-global imax imin jmax jmin dxi dyi
+//======  ===================生成网格================================================
+int imax, imin, jmax, jmin, dxi, dyi;
 imin=2; imax=imin+nx-1;
 jmin=2; jmax=jmin+ny-1;
+
 x(imin : imax+1)=linspace (0 ,Lx, nx+1);
 y(jmin : jmax+1)=linspace (0 ,Ly, ny+1);
+
 xm(imin : imax)=0.5*(x(imin : imax)+x(imin+1:imax+1));
 ym(jmin : jmax)=0.5*(y(jmin : jmax)+y(jmin+1:jmax+1));
+
 dx=x(imin+1)-x(imin );
 dy=y(jmin+1)-y(jmin );
+
 dxi=1/dx ;
 dyi=1/dy ;
 //参数设置
@@ -88,3 +111,7 @@ while (istep<istep_max)
         fprintf('残差过大不收敛');
         break;
     end
+   
+   
+   return 0;
+}

@@ -1,3 +1,5 @@
+// sph方法模拟二维流动 tony jiao
+
 #include <math.h>
 #include <fstream>
 #include <iostream>
@@ -5,53 +7,56 @@
 using namespace std;
 
 
-#define CHUNKSIZE 40  //动态引导进程类型使用的每个线程的块大小
-#define THREAD_NUM 16
+#define CHUNKSIZE 40  //openmp guided 模式线程调度
+#define THREAD_NUM 16 //线程数量
 
 
-// 全局参数
-int i, j, k, psi, q, qi;
-double M_pi = 3.14159265359;
-double ad = 96*M_pi/1199;
+//常数
+double Pi = 3.14159265359;
+double ad = 96*Pi/1199;
 double c0 = 30.0;
 
-// 粒子参数
+//系数声明
+int i, j, k, psi, q, qi;
+//粒子参数声明
 int n, nb, d, ni, ne, stencil_size, bt;
 double  mass, mu, Rho, V, V1, V2, h, space;
-
-// 网格
+//网格变量声明
 int r, c, rb, cb, n1, n2, row_fact, col_fact;
 double Dx, Dy, dx, dy, L, H, l1, l2, h1, h2, gx, gy;
-
-// 时间
+//时间声明
 double dt, t_sim, t_total, steps;
 
-//矩阵输出函数
 
-//一维矩阵
+//输出一维矩阵
 template <typename T>
-void print1D(T a, int cols) {
+void print1D(T a, int cols) 
+{
 
-    for (int jj=0; jj<cols; jj++) {
+    for (int jj=0; jj<cols; jj++) 
+    {
         cout << a[jj] << " ";
     }
     cout << endl;
 }
 
 template <typename T>
-void setVal(T a, int cols, double val) {
-    for (int jj=0; jj<cols; jj++) {
+void setVal(T a, int cols, double val) 
+{
+    for (int jj=0; jj<cols; jj++)
+     {
         a[jj] = val;
     }
 }
 
-//二维矩阵
+//输出二维矩阵
 template <typename T>
-void print2D(T a, int rows, int cols) {
-
-
-    for (int ii=0; ii<rows; ii++) {
-        for (int jj=0; jj<cols; jj++) {
+void print2D(T a, int rows, int cols)
+ {
+    for (int ii=0; ii<rows; ii++) 
+    {
+        for (int jj=0; jj<cols; jj++) 
+        {
             cout << a[ii*cols+jj] << " ";
         }
         cout << endl;
@@ -59,14 +64,17 @@ void print2D(T a, int rows, int cols) {
 }
 
 template <typename T>
-auto slice3D(T a, int* size, int r1, int r2, int c1, int c2, int d1, int d2) {
-
+auto slice3D(T a, int* size, int r1, int r2, int c1, int c2, int d1, int d2) 
+{
     int rows = size[0]; int cols = size[1]; int dep = size[2];
     double* res = new double[(r2-r1)*(c2-c1)*(d2-d1)]{0};
     int cnt = 0;
-    for (int ii=r1; ii<r2; ii++) {
-        for (int jj=c1; jj<c2; jj++) {
-            for (int kk=d1; kk<d2; kk++) {
+    for (int ii=r1; ii<r2; ii++) 
+    {
+        for (int jj=c1; jj<c2; jj++) 
+        {
+            for (int kk=d1; kk<d2; kk++) 
+            {
                 res[cnt] = a[ (ii*cols+jj)*dep + kk];
                 cnt++;
             }
@@ -77,20 +85,22 @@ auto slice3D(T a, int* size, int r1, int r2, int c1, int c2, int d1, int d2) {
 
 
 //打印指向文件的指针
-void print2file(double* a, int rows, int cols, string path) {
-
+void print2file(double* a, int rows, int cols, string path)
+ {
     ofstream myfile (path, ios_base::app);
-    for (int ii=0; ii<rows; ii++) {
-        for (int jj=0; jj<cols; jj++) {
+    for (int ii=0; ii<rows; ii++) 
+    {
+        for (int jj=0; jj<cols; jj++) 
+        {
             myfile << a[ii*cols+jj] << " ";
         }
         myfile << endl;
     }
     myfile.close();
 }
-// 检查计算域边界
-bool stencilBoundaryCheck(int rows, int cols) {
-
+//检查计算域边界
+bool stencilBoundaryCheck(int rows, int cols)
+ {
     if (rows < 0 || cols < 0)
         return 1;
 
@@ -99,13 +109,14 @@ bool stencilBoundaryCheck(int rows, int cols) {
     return 0;
 }
 
-void indexFixSoft(int& ii, int& jj) {
+void indexFixSoft(int& ii, int& jj) 
+{
     
     if (ii == -1) {ii = 0;}
 }
 //检查粒子是否在域之外
-bool coordBoundaryCheck(double xx, double yy) {
-   
+bool coordBoundaryCheck(double xx, double yy) 
+{ 
     if (yy<0 || yy>=Dy*rb)
         return 1;
 
@@ -115,15 +126,14 @@ bool coordBoundaryCheck(double xx, double yy) {
     return 0;
 }
 //检查粒子是否在域之外
-bool boundaryCheckArray(double* a, double* b, int size, bool print) {
- 
-
+bool boundaryCheckArray(double* a, double* b, int size, bool print) 
+{
     bool res;
     for (int jj=0; jj<size; jj++) {
         res = coordBoundaryCheck(a[jj], b[jj]);
         if (res == 1) {
             if (print == 1) {
-                cout << "Particle out of bounds." << endl;
+                cout << "粒子超出边界" << endl;
                 exit (EXIT_FAILURE);
             }
             return res;
@@ -131,28 +141,29 @@ bool boundaryCheckArray(double* a, double* b, int size, bool print) {
     }
     return res;
 }
+//定义核函数
+double kernel(double dr) 
+{
+   double o = abs(dr)/h;
 
-double kernel(double dr) {
-    // Kernel function definition
-
-    double o = abs(dr)/h;
-
-	if (0 <= o && o <= 0.5) {
+	if (0 <= o && o <= 0.5) 
+	{
 		return (ad/h)*(pow(5/2-o, 4) - 5*pow(3/2-o, 4) + 10*pow(0.5-o, 4));
 	}
-	else if (0.5 < o && o <= 1.5) {
+	else if (0.5 < o && o <= 1.5)
+	{
 		return (ad/h)*(pow(5/2-o, 4) - 5*pow(3/2-o, 4));
 	}
-	else if (1.5 < o && o <= 2.5) {
+	else if (1.5 < o && o <= 2.5) 
+	{
 		return (ad/h)*(pow(5/2-o, 4));
 	}
     return 0;
 }
-//核函数的导数
+//核函数导数
 double gradKernel(double dr) {
  
-
-    double o = abs(dr)/h;
+  double o = abs(dr)/h;
 
 	if (0 <= o && o <= 0.5) {
 		return (ad/h)*(-4/h*pow(5/2-o, 3) + 20/h*pow(3/2-o, 3) - 40/h*pow(0.5-o, 3));
@@ -177,18 +188,20 @@ void initialise(double* a, double* b, double l1, double l2) {
     bool randomIni = 1;
     space = row_fact*Dx;
 
-    if (randomIni == 1) {
-        // 粒子
+    if (randomIni == 1) 
+    {
 
         int jj = 0; int ii = 0;
-        for (int kk=0; kk<n1; kk++) {
+        for (int kk=0; kk<n1; kk++) 
+        {
             if (jj*dx > l1) {ii++; jj = 0;}
             a[kk] = space + jj*dx;
             b[kk] = space + ii*dx;
             jj++;
         }
         jj = 0; ii = 0;
-        for (int kk=n1; kk<n; kk++) {
+        for (int kk=n1; kk<n; kk++) 
+        {
             if (jj*dx > l2) {ii++; jj = 0;}
             a[kk] = space + jj*dx;
             b[kk] = space + dx/2 + h1 + dx + ii*dx;
@@ -196,7 +209,7 @@ void initialise(double* a, double* b, double l1, double l2) {
         }
     }
     else {
-        //随机粒子
+         //其他粒子
         for (int kk = 0; kk<n; kk++) {
             a[kk] = space + randZeroToOne()*L;
             b[kk] = space + randZeroToOne()*H;
@@ -209,28 +222,32 @@ void initialiseBoundaries(double* x, double* y, int nbh, int nbv, int nbh_side, 
     double space2 = row_fact*Dx-(bt-0)*dx;
 
     int jj = 0; int ii = 0;
-    for (int kk=n; kk<n+nbh/2; kk++) {
+    for (int kk=n; kk<n+nbh/2; kk++) 
+    {
         if (jj*dx > L+2*bt*dx) {ii++; jj = 0;}
         x[kk] = space2 + jj*dx;
         y[kk] = space2 + ii*dx;
         jj++;
     }
     jj = 0; ii = 0;
-    for (int kk=n+nbh/2; kk<n+nbh; kk++) {
+    for (int kk=n+nbh/2; kk<n+nbh; kk++) 
+    {
         if (jj*dx > L+2*bt*dx) {ii++; jj = 0;}
         x[kk] = space2 + jj*dx;
         y[kk] = space2 + dx + bt*dx + H + ii*dx;  // dx + ??
         jj++;
     }
     jj = 0; ii = 0;
-    for (int kk=n+nbh; kk<n+nbh+nbv/2; kk++) {
+    for (int kk=n+nbh; kk<n+nbh+nbv/2; kk++) 
+    {
         if (jj*dx > (bt-1)*dx) {ii++; jj = 0;}
         x[kk] = space2 + jj*dx;
         y[kk] = space2 + bt*dx + ii*dx;
         jj++;
     }
     jj = 0; ii = 0;
-    for (int kk=n+nbh+nbv/2; kk<n+nbv+nbh; kk++) {
+    for (int kk=n+nbh+nbv/2; kk<n+nbv+nbh; kk++) 
+    {
         if (jj*dx >= 2*bt*dx) {ii++; jj = 0;}
         x[kk] = space2 + dx + bt*dx + L + jj*dx;  // dx + ??
         y[kk] = space2 + bt*dx + ii*dx;
@@ -254,7 +271,8 @@ void fileIni(string path, int size) {
 }
 
 //检查点是否在半径范围内
-bool circleCheck(double a, double b, double radius) {
+bool circleCheck(double a, double b, double radius)
+{
 
     a = abs(a); b = abs(b);
     if (a + b <= radius)
@@ -270,7 +288,8 @@ bool circleCheck(double a, double b, double radius) {
 }
 
 //计算粘滞张量
-double viscTensor(double dvel, double difr, double mui, double muj, double rhoi, double rhoj, double deltaw) {
+double viscTensor(double dvel, double difr, double mui, double muj, double rhoi, double rhoj, double deltaw) 
+{
 
     double eh = 0.01*h*h;
 
@@ -278,9 +297,8 @@ double viscTensor(double dvel, double difr, double mui, double muj, double rhoi,
 }
 
 //计算压力
-void setPressure(double* a, double* rho, int cols) {
-
-    
+void setPressure(double* a, double* rho, int cols) 
+{
     double gamma = 7.0;
 
     for (int jj=0; jj<cols; jj++) {
@@ -290,18 +308,15 @@ void setPressure(double* a, double* rho, int cols) {
 }
 
 //计算压力
-void setPressure2(double* a, double rrho, int cols) {
- 
-    
+void setPressure2(double* a, double rrho, int cols)
+{
     double gamma = 7.0;
-
     a[cols] = Rho*c0*c0/gamma*(pow(rrho/Rho, gamma) - 1);
-
 }
 
 //边界处理
-void mirrorBC(double* xx, double* yy, double* uu, double* vv, int col) {
-
+void mirrorBC(double* xx, double* yy, double* uu, double* vv, int col) 
+{
 	if (xx[col] < Dx) {
 		xx[col] = -xx[col] / 2.0;
 		uu[col] = -uu[col];
@@ -309,7 +324,6 @@ void mirrorBC(double* xx, double* yy, double* uu, double* vv, int col) {
 	if (yy[col] < Dx) {
 		yy[col] = -yy[col] / 2.0;
 		vv[col] = -vv[col];
-
 	}
 	if (xx[col] >= Dx+L) {
 		xx[col] = Dx+L - xx[col] + Dx+L;
@@ -322,33 +336,45 @@ void mirrorBC(double* xx, double* yy, double* uu, double* vv, int col) {
 }
 
 
-int main() {
+int main()
+{
     ios_base::sync_with_stdio(false);
     cin.tie(NULL); cout.tie(NULL);
 
     //帧数
     double fps = 30;
+    //输出次数
     double print_count = 0;
 
+//*******************粒子数量******************
     //粒子数
     n = 5000;
     //密度
     Rho = 1000;
 
-    //时间步
+
+ //******************时间步*********************
     dt = 0.0001;
     steps = 40000;
     t_total = dt*steps;
     t_sim = 0.0;
 
+
+ //******************计算域设置********************
     //边界厚度
     bt = 3;
     //尺寸
     L = 20; H = 10;
 
     //几何初始化参数
-    h1 = 0.2*H; l1 = L;
+    h1 = 0.2*H; l1 = 0.15*L;
     h2 = 0.3*H; l2 = 0.15*L;
+    //加速度设置
+    gx = 0;
+    gy = -9.81;
+    
+ //********************初始化*********************  
+    
     V1 = h1*l1; V2 = h2*l2;
     V = V1 + V2;
     double ratio = V1/V;
@@ -361,7 +387,7 @@ int main() {
     int nbh = bt*nbh_side*2;
     int nbv_side = bt;
     int nbv = (H/dx+1)*nbv_side*2;
-    nb = nbh+nbv;
+     nb = nbh+nbv;
 
     //指针初始化
     double* ax = new double[n+nb]{0};
@@ -387,7 +413,7 @@ int main() {
     //粒子核的网格参数
     h = sqrt(2)*dx;
     Dx = 2.5*h; Dy = Dx;
-    d = (Dx/dx+1)*(Dx/dx+1); // max particle inside cell
+    d = (Dx/dx+1)*(Dx/dx+1); 
     r = H/Dy+0.5; c = L/Dx+0.5;
     row_fact = Dy / (dx*(bt-1)) + 0;
     col_fact = Dx / (dx*(bt-1)) + 0;
@@ -400,15 +426,10 @@ int main() {
     int* stencil_y = new int[stencil_size]{-1, 0, 1, -1, 0, 1, -1, 0, 1};
     long long iter_cnt = 0;
 
-    //打印结果
     double dt_max = 0.1*h/c0;
-    cout << "dt: " << dt << endl;
-    cout << "dt_max " << dt_max << endl;
-    cout << "dx: " << dx << endl;
-    cout << "Dx: " << Dx << endl;
-    cout << "Max particles in cell: " << d << endl;
 
-    // 最终初始化
+
+    //最终初始化
     initialise(x, y, l1, l2);
     initialise(x_old, y_old, l1, l2);
     initialiseBoundaries(x, y, nbh, nbv, nbh_side, nbv_side);
@@ -416,16 +437,20 @@ int main() {
     //流体属性
     mass = Rho * dx * dx;
     mu = 0.001;
-    gx = 0; gy = -9.81;
 
     //文件初始化
     string pathx = "x.txt";
     string pathy = "y.txt";
-    fileIni(pathx, n+nb); fileIni(pathy, n+nb);
+    fileIni(pathx, n+nb); 
+    fileIni(pathy, n+nb);
+
 
     
+    cout<<"初始化完成，开始计算"<<endl;
+//****************************************计算************************* 
     // 时间步循环
-    while (t_sim < t_total) {
+    while (t_sim < t_total)
+    {
 
         //计算每个粒子的周围信息（每4步更新一次）
         if (iter_cnt % 1 == 0) {
@@ -440,7 +465,7 @@ int main() {
                 indexFixSoft(i, j);
                 //计算粒子指数
                 q = (i*cb + j)*d + ndeg[i*cb+j];
-                //将粒子存储在适当的单元中
+                //将粒子存储在适当的网格单元中
                 jaret[q] = ni;
                 ndeg[i*cb+j]++;
             }
@@ -448,30 +473,38 @@ int main() {
         
         // 粒子循环
         #pragma omp parallel for num_threads(THREAD_NUM) schedule(guided, CHUNKSIZE)
-        for (ni=0; ni<n; ni++) {
-
-           //跳过泄漏粒子
-            if (x[ni] == 0 && y[ni] == 0) {continue;}
+        for (ni=0; ni<n; ni++)
+        {
+           
+            if (x[ni] == 0 && y[ni] == 0) 
+            {
+              continue;
+            }
 
             int i0, j0, q, qi, i, j;
-            double weight0 = 0; double weight1 = 0;
+            double weight0 = 0; 
+            double weight1 = 0;
             double difx, dify, weightx, weighty, visc_termx, visc_termy, du, dv, dr0, dwr;
 
-            //i j
-            i0 = (rb-1) - (int)(y[ni]/Dy); j0 = x[ni]/Dx;
+     
+            i0 = (rb-1) - (int)(y[ni]/Dy); 
+            j0 = x[ni]/Dx;
 
             //计算周围信息
-            for (int psi=0; psi<stencil_size; psi++) {
-
-                // 周围的i, j
+            for (int psi=0; psi<stencil_size; psi++) 
+            {
                 i = i0 + stencil_x[psi];
                 j = j0 + stencil_y[psi];
 
                 bool out_of_bounds = stencilBoundaryCheck(i, j);
-                if (out_of_bounds == 1) {continue;}
+                if (out_of_bounds == 1) 
+                {
+                  continue;
+                }
 
-                // Find all particle neighbours @ stencil cell
-                for (int k=0; k<ndeg[i*cb+j]; k++) {
+               
+                for (int k=0; k<ndeg[i*cb+j]; k++) 
+                {
 
                     // 当前粒子系数
                     q = (i*cb + j)*d + k; 
@@ -480,16 +513,20 @@ int main() {
                     qi = jaret[q];
 
                     // 跳过相同粒子
-                    if (q == qi) {continue;}
+                    if (q == qi) 
+                      {
+                        continue;
+                      }
 
                     // 计算位移
                     difx = x[qi] - x[ni];
                     dify = y[qi] - y[ni];
 
-                    //检查邻居是否在范围内
+                    //检查粒子是否在范围内
                     bool in_circle = circleCheck(difx, dify, Dx);
 
-                    if (in_circle == 1) {
+                    if (in_circle == 1) 
+                    {
                         
                         //速度差
                         du = u[qi] - u[ni];
@@ -498,7 +535,7 @@ int main() {
                         dr0 = sqrt(difx*difx + dify*dify);
                         //核的梯度
                         dwr = gradKernel(dr0);
-                        //重量
+                        //权重
                         weightx = dwr*difx/(dr0+10e-20);
                         weighty = dwr*dify/(dr0+10e-20);
 
@@ -513,22 +550,24 @@ int main() {
                         double sum_termy = mass*((p[ni]/rho[ni]/rho[ni] + p[qi]/rho[qi]/rho[qi])*weighty + visc_termy);
                         
                         // 外力计算
-                        // #pragma omp atomic
+                        #pragma omp atomic
                         fx[ni] += sum_termx;
-                        // #pragma omp atomic
+                        #pragma omp atomic
                         fy[ni] += sum_termy;
 
                         //更新密度
-                        // #pragma omp atomic
+                        #pragma omp atomic
                         drho[ni] += mass*(du*weightx + dv*weighty);
                         //更新边界密度
-                        if (qi > n) {
-                            // #pragma omp atomic
+                        if (qi > n) 
+                        {
+                            #pragma omp atomic
                             rho[qi] += mass*(du*weightx + dv*weighty)*dt;
                         }
 
                         //光滑处理
-                        if (iter_cnt % 10 == 0) {
+                        if (iter_cnt % 10 == 0) 
+                        {
                             weight0 += kernel(dr0);
                             weight1 += kernel(dr0)/rho[qi];
                         }
@@ -538,13 +577,17 @@ int main() {
             } 
 
             //光滑处理
-            if (iter_cnt % 10 == 0) {rho[ni] =  weight0/weight1;}
+            if (iter_cnt % 10 == 0) 
+            {
+              rho[ni] =  weight0/weight1;
+            }
 
         } 
 
         double maxrho = -1.0;
         //时间积分更新
-        for (ni=0; ni<n+nb; ni++) {
+        for (ni=0; ni<n+nb; ni++)
+        {
 
             if (ni < n) {
                 //粒子密度
@@ -567,14 +610,15 @@ int main() {
                 x[ni] = x_old[ni] + u[ni]*dt;
                 y[ni] = y_old[ni] + v[ni]*dt;
 
-                // 旧值更新
+                //旧值更新
                 u_old[ni] = u[ni];
                 v_old[ni] = v[ni];
                 x_old[ni] = x[ni];
                 y_old[ni] = y[ni];
 
-                //检查是否有泄漏颗粒
-                if (coordBoundaryCheck(x[ni], y[ni]) == 1) {
+                //检查粒子越界
+                if (coordBoundaryCheck(x[ni], y[ni]) == 1) 
+                {
                 
                     x[ni] = 0; 
                     y[ni] = 0;  
@@ -589,17 +633,17 @@ int main() {
 
          //数据导出
         //将x、y打印到文件
-        if (t_sim/(1/fps) > print_count) {
+        if (t_sim/(1/fps) > print_count) 
+        {
             print2file(x, 1, n+nb, pathx);
             print2file(y, 1, n+nb, pathy);
             print_count = print_count + 1;
-            cout << "Time elapsed (%): " << t_sim/t_total*100 << endl;
-            cout << "Rho change: " << maxrho << endl;
+            cout << "已完成（%）： " << t_sim/t_total*100 << endl;
         }
 
         //更新运行时间
         t_sim = t_sim + dt;
-        iter_cnt++;  //迭代计数器
+        iter_cnt++; 
 
     } 
     //时间循环结束
