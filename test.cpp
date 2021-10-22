@@ -1,14 +1,18 @@
-// sph方法模拟二维流动 tony jiao
+//二维流动 tony jiao
 
 #include <math.h>
 #include <fstream>
 #include <iostream>
 #include <omp.h>
+#include <time.h>
+#include <stdlib.h>
 using namespace std;
 
 
-#define CHUNKSIZE 40  //openmp guided 模式线程调度
-#define THREAD_NUM 16 //线程数量
+
+
+//int threadnums=omp_get_max_threads();
+int threadnums;
 
 
 //常数
@@ -234,7 +238,7 @@ void initialiseBoundaries(double* x, double* y, int nbh, int nbv, int nbh_side, 
     {
         if (jj*dx > L+2*bt*dx) {ii++; jj = 0;}
         x[kk] = space2 + jj*dx;
-        y[kk] = space2 + dx + bt*dx + H + ii*dx;  // dx + ??
+        y[kk] = space2 + dx + bt*dx + H + ii*dx;  
         jj++;
     }
     jj = 0; ii = 0;
@@ -249,7 +253,7 @@ void initialiseBoundaries(double* x, double* y, int nbh, int nbv, int nbh_side, 
     for (int kk=n+nbh+nbv/2; kk<n+nbv+nbh; kk++) 
     {
         if (jj*dx >= 2*bt*dx) {ii++; jj = 0;}
-        x[kk] = space2 + dx + bt*dx + L + jj*dx;  // dx + ??
+        x[kk] = space2 + dx + bt*dx + L + jj*dx;  
         y[kk] = space2 + bt*dx + ii*dx;
         jj++;
         if (jj%nbv_side == 0) {ii++; jj = 0;}
@@ -341,14 +345,26 @@ int main()
     ios_base::sync_with_stdio(false);
     cin.tie(NULL); cout.tie(NULL);
 
+
+cout<<"请输入线程数量： " <<endl;
+
+cin>>threadnums;
+cout<<endl;
+
     //帧数
     double fps = 30;
     //输出次数
     double print_count = 0;
 
 //*******************粒子数量******************
+  
+  cout<<"请输入粒子数量： " <<endl;
+
+cin>>n;
+cout<<endl;
+  
     //粒子数
-    n = 5000;
+   // n = 500;
     //密度
     Rho = 1000;
 
@@ -448,10 +464,13 @@ int main()
     
     cout<<"初始化完成，开始计算"<<endl;
 //****************************************计算************************* 
+    clock_t startime=clock();
+        
+    
     // 时间步循环
     while (t_sim < t_total)
     {
-
+ 
         //计算每个粒子的周围信息（每4步更新一次）
         if (iter_cnt % 1 == 0) {
             setVal(ndeg, rb*cb, 0);  // 初始化
@@ -471,8 +490,11 @@ int main()
             }
         }
         
+       
+        clock_t startime1=clock();
         // 粒子循环
-        #pragma omp parallel for num_threads(THREAD_NUM) schedule(guided, CHUNKSIZE)
+        //实验结果：大循环进行多线程向导式调度性能更好些
+     #pragma omp parallel for num_threads(threadnums) schedule(guided)
         for (ni=0; ni<n; ni++)
         {
            
@@ -502,7 +524,7 @@ int main()
                   continue;
                 }
 
-               
+              
                 for (int k=0; k<ndeg[i*cb+j]; k++) 
                 {
 
@@ -585,11 +607,14 @@ int main()
         } 
 
         double maxrho = -1.0;
+        
+      #pragma omp parallel for num_threads(threadnums) schedule(guided)
         //时间积分更新
         for (ni=0; ni<n+nb; ni++)
         {
 
-            if (ni < n) {
+            if (ni < n) 
+            {
                 //粒子密度
                 rho[ni] = rho_old[ni] + drho[ni]*dt;
                 double perc = abs(rho[ni]-rho_old[ni])/rho_old[ni]*100;
@@ -629,7 +654,8 @@ int main()
             setPressure2(p, rho[ni], ni);
 
         } //粒子求解结束
-
+          clock_t endtime1=clock();
+         
 
          //数据导出
         //将x、y打印到文件
@@ -638,20 +664,24 @@ int main()
             print2file(x, 1, n+nb, pathx);
             print2file(y, 1, n+nb, pathy);
             print_count = print_count + 1;
-            cout << "已完成（%）： " << t_sim/t_total*100 << endl;
+            cout << "已完成（%）： " << t_sim/t_total*100 << "  时间："<<(endtime1-startime1)<< "ms" <<endl;
         }
 
         //更新运行时间
         t_sim = t_sim + dt;
         iter_cnt++; 
+        
 
     } 
     //时间循环结束
-    
-    
+    clock_t endtime=clock();
+    cout<<"总的时间："<<(endtime-startime)/1000<< "s" <<endl;
+    cout<<"迭代次数："<<iter_cnt<<endl;
     //释放动态内存
     delete[] jaret, jaret_shape, stencil_x, stencil_y, ndeg;
     delete[] ax, ay, fx, fy, u, v, u_old, v_old, x, y, x_old, y_old, rho, rho_old, drho, p;
 
+
+system("pause");
     return 0;
 }
