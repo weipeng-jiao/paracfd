@@ -24,7 +24,7 @@ def plotSPH(i):
     # plt.scatter(x[i], y[i], s=5)
     plt.scatter(x[i, :n1], y[i, :n1], s=sz, c='r')
     plt.scatter(x[i, n1:n], y[i, n1:n], s=sz, c='r')
-    plt.scatter(x[i, n:], y[i, n:], s=sz, c='k')
+    plt.scatter(x[i, n:], y[i, n:], s=sz, c='w')
     plt.ylim([0, 2+L+2*bt*dx])
     plt.xlim([0, 2+H+2*bt*dx])
     # ax.add_patch(rect)

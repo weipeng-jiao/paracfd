@@ -1,4 +1,4 @@
-//二维流动 tony jiao
+// sph方法模拟二维流动 tony jiao
 
 #include <math.h>
 #include <fstream>
